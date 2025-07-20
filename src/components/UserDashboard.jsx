@@ -14,7 +14,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  X
+  X,
+  MessageCircle
 } from 'lucide-react';
 import Toast from './Toast';
 
@@ -629,6 +630,17 @@ const UserDashboard = ({ currentUser, onLogout }) => {
           onClose={() => setToast(null)}
         />
       )}
+
+      {/* WhatsApp Floating Button */}
+      <a
+        href="https://wa.me/62882007903929"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 bg-green-500 hover:bg-green-600 text-white p-4 rounded-full shadow-lg transition-all duration-300 hover:scale-110 z-50"
+        title="Hubungi kami via WhatsApp"
+      >
+        <MessageCircle className="w-6 h-6" />
+      </a>
     </div>
   );
 };

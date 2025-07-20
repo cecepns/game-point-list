@@ -156,7 +156,7 @@ const getAllGames = async (req, res) => {
     }
     
     // Add ordering and pagination
-    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    query += ' ORDER BY name ASC LIMIT ? OFFSET ?';
     params.push(parseInt(limit), offset);
     
     // Execute both queries

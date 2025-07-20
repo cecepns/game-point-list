@@ -7,7 +7,9 @@ import {
   Filter,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Eye,
+  Gamepad2
 } from 'lucide-react';
 import useDebounce from '../../hooks/useDebounce';
 
@@ -19,6 +21,12 @@ const AdminTransactions = () => {
   // Search and pagination states
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  
+  // Game list modal states
+  const [showGameModal, setShowGameModal] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [transactionGames, setTransactionGames] = useState([]);
+  const [loadingGames, setLoadingGames] = useState(false);
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
@@ -91,6 +99,28 @@ const AdminTransactions = () => {
     }
   };
 
+  const handleViewGames = async (transaction) => {
+    setSelectedTransaction(transaction);
+    setShowGameModal(true);
+    setLoadingGames(true);
+    
+    try {
+      const response = await axios.get(`${API_BASE}/transactions/${transaction.transaction_id}`);
+      setTransactionGames(response.data.games || []);
+    } catch (error) {
+      console.error('Error fetching transaction games:', error);
+      setTransactionGames([]);
+    } finally {
+      setLoadingGames(false);
+    }
+  };
+
+  const closeGameModal = () => {
+    setShowGameModal(false);
+    setSelectedTransaction(null);
+    setTransactionGames([]);
+  };
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 lg:mb-8">
@@ -150,18 +180,19 @@ const AdminTransactions = () => {
                 <th className="hidden sm:table-cell">Total Size</th>
                 <th className="hidden md:table-cell">Game</th>
                 <th className="hidden sm:table-cell">Tanggal</th>
+                <th className="w-20">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {loading || searchLoading ? (
                 <tr>
-                  <td colSpan="8" className="text-center py-8 text-gray-500">
+                  <td colSpan="9" className="text-center py-8 text-gray-500">
                     Memuat data...
                   </td>
                 </tr>
               ) : transactions.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="text-center py-8 text-gray-500">
+                  <td colSpan="9" className="text-center py-8 text-gray-500">
                     Tidak ada transaksi yang ditemukan
                   </td>
                 </tr>
@@ -189,6 +220,16 @@ const AdminTransactions = () => {
                     <td className="text-gray-600 hidden sm:table-cell">{transaction.total_size_gb} GB</td>
                     <td className="text-gray-600 hidden md:table-cell max-w-xs truncate">{transaction.game_names}</td>
                     <td className="text-gray-600 hidden sm:table-cell">{new Date(transaction.created_at).toLocaleDateString()}</td>
+                    <td>
+                      <button
+                        onClick={() => handleViewGames(transaction)}
+                        className="btn btn-primary py-1 px-2 text-xs flex items-center gap-1"
+                        title="Lihat daftar game"
+                      >
+                        <Eye className="w-3 h-3" />
+                        Lihat
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -224,6 +265,87 @@ const AdminTransactions = () => {
           </div>
         )}
       </div>
+
+      {/* Game List Modal */}
+      {showGameModal && (
+        <div className="modal-overlay">
+          <div className="modal-content max-w-4xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                <Gamepad2 className="w-5 h-5" />
+                Daftar Game - {selectedTransaction?.transaction_id}
+              </h2>
+              <button 
+                className="text-2xl text-gray-400 hover:text-gray-600 cursor-pointer"
+                onClick={closeGameModal}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">
+                <strong>User:</strong> {selectedTransaction?.user_name} | 
+                <strong> Flashdisk:</strong> {selectedTransaction?.flashdisk_name} | 
+                <strong> Total Size:</strong> {selectedTransaction?.total_size_gb} GB
+              </p>
+            </div>
+            
+            {loadingGames ? (
+              <div className="text-center py-8 text-gray-500">
+                Memuat daftar game...
+              </div>
+            ) : transactionGames.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                Tidak ada game yang ditemukan
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="table w-full">
+                  <thead>
+                    <tr>
+                      <th className="w-16">Gambar</th>
+                      <th>Nama Game</th>
+                      <th>Kategori</th>
+                      <th>Ukuran</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactionGames.map(game => (
+                      <tr key={game.id} className="hover:bg-gray-50">
+                        <td>
+                          <img 
+                            src={game.image_url} 
+                            alt={game.name}
+                            className="w-12 h-12 object-cover rounded-lg"
+                          />
+                        </td>
+                        <td>
+                          <p className="font-semibold text-gray-900">{game.name}</p>
+                        </td>
+                        <td>
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                            {game.category}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="text-sm text-gray-600">{game.size_gb} GB</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            
+            <div className="mt-6">
+              <button className="btn btn-primary" onClick={closeGameModal}>
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
