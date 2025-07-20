@@ -146,7 +146,7 @@ const AdminTransactions = () => {
                 <th>Nama User</th>
                 <th className="hidden lg:table-cell">Alamat</th>
                 <th className="hidden md:table-cell">Flashdisk</th>
-                <th className="hidden sm:table-cell">Real Kapasitas</th>
+                {/* <th className="hidden sm:table-cell">Real Kapasitas</th> */}
                 <th className="hidden sm:table-cell">Total Size</th>
                 <th className="hidden md:table-cell">Game</th>
                 <th className="hidden sm:table-cell">Tanggal</th>
@@ -185,7 +185,7 @@ const AdminTransactions = () => {
                       {transaction.user_address}
                     </td>
                     <td className="text-gray-600 hidden md:table-cell">{transaction.flashdisk_name}</td>
-                    <td className="text-gray-600 hidden sm:table-cell">{transaction.real_capacity_gb} GB</td>
+                    {/* <td className="text-gray-600 hidden sm:table-cell">{transaction.real_capacity_gb} GB</td> */}
                     <td className="text-gray-600 hidden sm:table-cell">{transaction.total_size_gb} GB</td>
                     <td className="text-gray-600 hidden md:table-cell max-w-xs truncate">{transaction.game_names}</td>
                     <td className="text-gray-600 hidden sm:table-cell">{new Date(transaction.created_at).toLocaleDateString()}</td>
