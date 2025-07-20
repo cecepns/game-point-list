@@ -106,7 +106,21 @@ const AdminTransactions = () => {
     
     try {
       const response = await axios.get(`${API_BASE}/transactions/${transaction.transaction_id}`);
-      setTransactionGames(response.data.games || []);
+      // Handle games data - it could be an array, JSON string, or other format
+      let games = response.data?.games;
+      
+      // If games is a string, try to parse it as JSON
+      if (typeof games === 'string') {
+        try {
+          games = JSON.parse(games);
+        } catch (parseError) {
+          console.error('Error parsing games JSON:', parseError);
+          games = [];
+        }
+      }
+      
+      // Ensure games is always an array
+      setTransactionGames(Array.isArray(games) ? games : []);
     } catch (error) {
       console.error('Error fetching transaction games:', error);
       setTransactionGames([]);
@@ -295,7 +309,7 @@ const AdminTransactions = () => {
               <div className="text-center py-8 text-gray-500">
                 Memuat daftar game...
               </div>
-            ) : transactionGames.length === 0 ? (
+            ) : !Array.isArray(transactionGames) || transactionGames.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 Tidak ada game yang ditemukan
               </div>
@@ -311,7 +325,7 @@ const AdminTransactions = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {transactionGames.map(game => (
+                    {Array.isArray(transactionGames) && transactionGames.map(game => (
                       <tr key={game.id} className="hover:bg-gray-50">
                         <td>
                           <img 
