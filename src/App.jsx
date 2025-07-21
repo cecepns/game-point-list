@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import LandingPage from './components/LandingPage';
 import AdminLogin from './components/AdminLogin';
 import UserLogin from './components/UserLogin';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminGames from './components/admin/AdminGames';
 import AdminFlashdisks from './components/admin/AdminFlashdisks';
+import AdminUsers from './components/admin/AdminUsers';
 import AdminTransactions from './components/admin/AdminTransactions';
 import UserDashboard from './components/UserDashboard';
 
@@ -71,6 +71,7 @@ function App() {
                     <Route index element={<Navigate to="/admin/games" replace />} />
                     <Route path="games" element={<AdminGames />} />
                     <Route path="flashdisks" element={<AdminFlashdisks />} />
+                    <Route path="users" element={<AdminUsers />} />
                     <Route path="transactions" element={<AdminTransactions />} />
                   </Route>
                   <Route path="*" element={<Navigate to="/admin" replace />} />

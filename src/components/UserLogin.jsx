@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import axios from 'axios';
 import PropTypes from 'prop-types';
-import { User, Lock, Eye, EyeOff, AlertCircle, Shield } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, AlertCircle, MessageCircle } from 'lucide-react';
 
 const UserLogin = ({ onLogin }) => {
   const [formData, setFormData] = useState({
@@ -107,19 +106,19 @@ const UserLogin = ({ onLogin }) => {
         </form>
         
         <div className="mt-6 text-center space-y-3">
-          <div className="text-sm text-gray-600">
-            <p>Akun: user1 / user123</p>
-          </div>
-          
-          {/* <div className="border-t pt-4">
-            <Link 
-              to="/admin/login"
-              className="inline-flex items-center gap-2 text-sm text-red-600 hover:text-red-800 transition-colors"
+          <div className="border-t pt-4">
+            <button
+              onClick={() => {
+                const phoneNumber = '+62882007903929'; // Nomor WhatsApp Admin
+                const message = encodeURIComponent('Halo Admin, saya butuh bantuan dengan akun Game Point List saya.');
+                window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors duration-200 text-sm"
             >
-              <Shield className="w-4 h-4" />
-              Login sebagai Admin
-            </Link>
-          </div> */}
+              <MessageCircle className="w-4 h-4" />
+              Hubungi Admin Untuk Mendapatkan Akun
+            </button>
+          </div>
         </div>
       </div>
     </div>

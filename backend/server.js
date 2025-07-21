@@ -127,6 +127,259 @@ const register = async (req, res) => {
   }
 };
 
+// User Management Controllers
+const getAllUsers = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, search = '', role = '' } = req.query;
+    const offset = (page - 1) * limit;
+    
+    let query = 'SELECT id, username, role, is_active, created_at FROM users WHERE 1=1';
+    let countQuery = 'SELECT COUNT(*) as total FROM users WHERE 1=1';
+    let params = [];
+    let countParams = [];
+    
+    // Add search filter
+    if (search) {
+      query += ' AND username LIKE ?';
+      countQuery += ' AND username LIKE ?';
+      const searchParam = `%${search}%`;
+      params.push(searchParam);
+      countParams.push(searchParam);
+    }
+    
+    // Add role filter
+    if (role) {
+      query += ' AND role = ?';
+      countQuery += ' AND role = ?';
+      params.push(role);
+      countParams.push(role);
+    }
+    
+    // Add ordering and pagination
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(parseInt(limit), offset);
+    
+    // Execute both queries
+    const [users] = await pool.execute(query, params);
+    const [countResult] = await pool.execute(countQuery, countParams);
+    
+    const total = countResult[0].total;
+    const totalPages = Math.ceil(total / limit);
+    
+    res.json({
+      users,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalItems: total,
+        itemsPerPage: parseInt(limit),
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const [users] = await pool.execute(
+      'SELECT id, username, role, is_active, created_at FROM users WHERE id = ?',
+      [id]
+    );
+    
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(users[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const createUser = async (req, res) => {
+  try {
+    const { username, password, role = 'user' } = req.body;
+    
+    // Validate required fields
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+    
+    // Validate role
+    if (!['admin', 'user'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role. Must be admin or user' });
+    }
+    
+    // Check if username already exists
+    const [existingUsers] = await pool.execute(
+      'SELECT id FROM users WHERE username = ?',
+      [username]
+    );
+    
+    if (existingUsers.length > 0) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+    
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    const [result] = await pool.execute(
+      'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
+      [username, hashedPassword, role]
+    );
+    
+    res.status(201).json({ 
+      message: 'User created successfully', 
+      userId: result.insertId 
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, password, role, is_active } = req.body;
+    
+    // Validate role if provided
+    if (role && !['admin', 'user'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role. Must be admin or user' });
+    }
+    
+    // Check if user exists
+    const [existingUsers] = await pool.execute(
+      'SELECT id FROM users WHERE id = ?',
+      [id]
+    );
+    
+    if (existingUsers.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Prevent admin from deactivating themselves
+    if (req.user.id == id && is_active === false) {
+      return res.status(400).json({ error: 'Cannot deactivate your own account' });
+    }
+    
+    // Check if username already exists for other users
+    if (username) {
+      const [duplicateUsers] = await pool.execute(
+        'SELECT id FROM users WHERE username = ? AND id != ?',
+        [username, id]
+      );
+      
+      if (duplicateUsers.length > 0) {
+        return res.status(400).json({ error: 'Username already exists' });
+      }
+    }
+    
+    // Build update query dynamically
+    let updateFields = [];
+    let updateParams = [];
+    
+    if (username) {
+      updateFields.push('username = ?');
+      updateParams.push(username);
+    }
+    
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updateFields.push('password = ?');
+      updateParams.push(hashedPassword);
+    }
+    
+    if (role) {
+      updateFields.push('role = ?');
+      updateParams.push(role);
+    }
+    
+    if (typeof is_active !== 'undefined') {
+      updateFields.push('is_active = ?');
+      updateParams.push(is_active);
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    updateParams.push(id);
+    
+    await pool.execute(
+      `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
+      updateParams
+    );
+    
+    res.json({ message: 'User updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Prevent admin from deleting themselves
+    if (req.user.id == id) {
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+    
+    // Check if user exists
+    const [existingUsers] = await pool.execute(
+      'SELECT id FROM users WHERE id = ?',
+      [id]
+    );
+    
+    if (existingUsers.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Soft delete by setting is_active to false
+    await pool.execute(
+      'UPDATE users SET is_active = FALSE WHERE id = ?',
+      [id]
+    );
+    
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const permanentDeleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Prevent admin from deleting themselves
+    if (req.user.id == id) {
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+    
+    // Check if user exists
+    const [existingUsers] = await pool.execute(
+      'SELECT id FROM users WHERE id = ?',
+      [id]
+    );
+    
+    if (existingUsers.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Permanently delete the user
+    await pool.execute('DELETE FROM users WHERE id = ?', [id]);
+    
+    res.json({ message: 'User permanently deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // Game Controllers
 const getAllGames = async (req, res) => {
   try {
@@ -443,6 +696,14 @@ const getTransactionById = async (req, res) => {
 // Authentication routes
 app.post('/auth/login', login);
 app.post('/auth/register', register);
+
+// User Management routes
+app.get('/users', authenticateToken, requireAdmin, getAllUsers);
+app.post('/users', authenticateToken, requireAdmin, createUser);
+app.get('/users/:id', authenticateToken, requireAdmin, getUserById);
+app.put('/users/:id', authenticateToken, requireAdmin, updateUser);
+app.delete('/users/:id', authenticateToken, requireAdmin, deleteUser);
+app.delete('/users/:id/permanent', authenticateToken, requireAdmin, permanentDeleteUser);
 
 // Game routes
 app.get('/games', getAllGames);

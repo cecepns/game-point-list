@@ -1,23 +1,24 @@
-import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
-import PropTypes from 'prop-types';
-import { 
-  Search, 
-  Plus, 
-  Trash2, 
-  ShoppingCart, 
-  HardDrive, 
-  Gamepad2, 
-  Package, 
-  User, 
+import { useState, useEffect, useCallback } from "react";
+import axios from "axios";
+import PropTypes from "prop-types";
+import {
+  Search,
+  Plus,
+  Trash2,
+  ShoppingCart,
+  HardDrive,
+  Gamepad2,
+  Package,
+  User,
   LogOut,
   ChevronLeft,
   ChevronRight,
   Filter,
   X,
-  MessageCircle
-} from 'lucide-react';
-import Toast from './Toast';
+  MessageCircle,
+  Store,
+} from "lucide-react";
+import Toast from "./Toast";
 
 // Custom hook for debouncing
 const useDebounce = (value, delay) => {
@@ -43,27 +44,27 @@ const UserDashboard = ({ currentUser, onLogout }) => {
   const [selectedFlashdisk, setSelectedFlashdisk] = useState(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showUserInfoModal, setShowUserInfoModal] = useState(false);
-  const [transactionId, setTransactionId] = useState('');
+  const [transactionId, setTransactionId] = useState("");
   const [toast, setToast] = useState(null);
-  
+
   // User info form for order
   const [userInfo, setUserInfo] = useState({
-    user_name: '',
-    user_address: ''
+    user_name: "",
+    user_address: "",
   });
-  
+
   // Order data for modal
   const [orderData, setOrderData] = useState({
     flashdisk: null,
     games: [],
     totalSize: 0,
     totalPrice: 0,
-    user_name: '',
-    user_address: ''
+    user_name: "",
+    user_address: "",
   });
-  
+
   // Search and pagination states
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({
     currentPage: 1,
@@ -71,7 +72,7 @@ const UserDashboard = ({ currentUser, onLogout }) => {
     totalItems: 0,
     itemsPerPage: 10,
     hasNextPage: false,
-    hasPrevPage: false
+    hasPrevPage: false,
   });
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -79,7 +80,7 @@ const UserDashboard = ({ currentUser, onLogout }) => {
   // Debounced search term (500ms delay)
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-  const API_BASE = 'https://api-inventory.isavralabel.com/api/game-point-list';
+  const API_BASE = "https://api-inventory.isavralabel.com/api/game-point-list";
 
   useEffect(() => {
     fetchGames();
@@ -96,15 +97,15 @@ const UserDashboard = ({ currentUser, onLogout }) => {
         page: currentPage,
         limit: 10,
         search: debouncedSearchTerm,
-        status: 'available'
+        status: "available",
       });
-      
+
       const response = await axios.get(`${API_BASE}/games?${params}`);
       setGames(response.data.games);
       setPagination(response.data.pagination);
     } catch (error) {
-      console.error('Error fetching games:', error);
-      setToast({ message: 'Gagal memuat data game', type: 'error' });
+      console.error("Error fetching games:", error);
+      setToast({ message: "Gagal memuat data game", type: "error" });
     } finally {
       setLoading(false);
       setSearchLoading(false);
@@ -116,7 +117,7 @@ const UserDashboard = ({ currentUser, onLogout }) => {
       const response = await axios.get(`${API_BASE}/flashdisks`);
       setFlashdisks(response.data);
     } catch (error) {
-      console.error('Error fetching flashdisks:', error);
+      console.error("Error fetching flashdisks:", error);
     }
   };
 
@@ -126,23 +127,26 @@ const UserDashboard = ({ currentUser, onLogout }) => {
   };
 
   const clearSearch = () => {
-    setSearchTerm('');
+    setSearchTerm("");
     setCurrentPage(1);
   };
 
   const addToCart = (game) => {
-    const existingItem = cart.find(item => item.id === game.id);
+    const existingItem = cart.find((item) => item.id === game.id);
     if (existingItem) {
-      setToast({ message: 'Game sudah ada di keranjang!', type: 'error' });
+      setToast({ message: "Game sudah ada di keranjang!", type: "error" });
       return;
     }
-    
+
     setCart([...cart, game]);
-    setToast({ message: 'Game berhasil ditambahkan ke keranjang!', type: 'success' });
+    setToast({
+      message: "Game berhasil ditambahkan ke keranjang!",
+      type: "success",
+    });
   };
 
   const removeFromCart = (gameId) => {
-    setCart(cart.filter(item => item.id !== gameId));
+    setCart(cart.filter((item) => item.id !== gameId));
   };
 
   const getTotalSize = () => {
@@ -155,18 +159,25 @@ const UserDashboard = ({ currentUser, onLogout }) => {
 
   const handleCreateOrder = () => {
     if (cart.length === 0) {
-      setToast({ message: 'Keranjang masih kosong!', type: 'error' });
+      setToast({ message: "Keranjang masih kosong!", type: "error" });
       return;
     }
 
     if (!selectedFlashdisk) {
-      setToast({ message: 'Pilih flashdisk terlebih dahulu!', type: 'error' });
+      setToast({ message: "Pilih flashdisk terlebih dahulu!", type: "error" });
       return;
     }
 
     const totalSize = getTotalSize();
     if (totalSize > selectedFlashdisk.real_capacity_gb) {
-      setToast({ message: `Total ukuran game (${totalSize.toFixed(1)} GB) melebihi real kapasitas flashdisk (${selectedFlashdisk.real_capacity_gb} GB)!`, type: 'error' });
+      setToast({
+        message: `Total ukuran game (${totalSize.toFixed(
+          1
+        )} GB) melebihi real kapasitas flashdisk (${
+          selectedFlashdisk.real_capacity_gb
+        } GB)!`,
+        type: "error",
+      });
       return;
     }
 
@@ -180,7 +191,7 @@ const UserDashboard = ({ currentUser, onLogout }) => {
 
   const createOrder = async () => {
     if (!userInfo.user_name.trim() || !userInfo.user_address.trim()) {
-      setToast({ message: 'Nama dan alamat harus diisi!', type: 'error' });
+      setToast({ message: "Nama dan alamat harus diisi!", type: "error" });
       return;
     }
 
@@ -191,12 +202,12 @@ const UserDashboard = ({ currentUser, onLogout }) => {
         user_address: userInfo.user_address,
         flashdisk_id: selectedFlashdisk.id,
         games: cart,
-        total_size_gb: totalSize
+        total_size_gb: totalSize,
       };
 
       const response = await axios.post(`${API_BASE}/transactions`, orderData);
       setTransactionId(response.data.transaction_id);
-      
+
       // Save order data for modal before resetting
       setOrderData({
         flashdisk: selectedFlashdisk,
@@ -204,54 +215,57 @@ const UserDashboard = ({ currentUser, onLogout }) => {
         totalSize: totalSize,
         totalPrice: selectedFlashdisk.price,
         user_name: userInfo.user_name,
-        user_address: userInfo.user_address
+        user_address: userInfo.user_address,
       });
-      
+
       setShowUserInfoModal(false);
       setShowOrderModal(true);
-      setToast({ message: 'Pesanan berhasil dibuat!', type: 'success' });
-      
+      setToast({ message: "Pesanan berhasil dibuat!", type: "success" });
+
       // Reset cart and selection
       setCart([]);
       setSelectedFlashdisk(null);
-      setUserInfo({ user_name: '', user_address: '' });
+      setUserInfo({ user_name: "", user_address: "" });
     } catch (error) {
-      console.error('Error creating order:', error);
-      setToast({ message: 'Gagal membuat pesanan. Silakan coba lagi.', type: 'error' });
+      console.error("Error creating order:", error);
+      setToast({
+        message: "Gagal membuat pesanan. Silakan coba lagi.",
+        type: "error",
+      });
     }
   };
 
   const closeOrderModal = () => {
     setShowOrderModal(false);
-    setTransactionId('');
+    setTransactionId("");
     setOrderData({
       flashdisk: null,
       games: [],
       totalSize: 0,
       totalPrice: 0,
-      user_name: '',
-      user_address: ''
+      user_name: "",
+      user_address: "",
     });
   };
 
   const getCategoryIcon = (category) => {
     switch (category.toLowerCase()) {
-      case 'action':
-        return '⚔️';
-      case 'adventure':
-        return '🗺️';
-      case 'rpg':
-        return '⚔️';
-      case 'strategy':
-        return '🎯';
-      case 'sports':
-        return '⚽';
-      case 'racing':
-        return '🏎️';
-      case 'puzzle':
-        return '🧩';
+      case "action":
+        return "⚔️";
+      case "adventure":
+        return "🗺️";
+      case "rpg":
+        return "⚔️";
+      case "strategy":
+        return "🎯";
+      case "sports":
+        return "⚽";
+      case "racing":
+        return "🏎️";
+      case "puzzle":
+        return "🧩";
       default:
-        return '🎮';
+        return "🎮";
     }
   };
 
@@ -269,8 +283,8 @@ const UserDashboard = ({ currentUser, onLogout }) => {
             </p>
           </div>
         </div>
-        <button 
-          className="btn btn-outline flex items-center gap-2" 
+        <button
+          className="btn btn-outline flex items-center gap-2"
           onClick={onLogout}
         >
           <LogOut className="w-4 h-4" />
@@ -292,8 +306,6 @@ const UserDashboard = ({ currentUser, onLogout }) => {
                   Total: {pagination.totalItems} game
                 </div>
               </div>
-              
-
 
               {/* Search Bar */}
               <div className="mb-6">
@@ -323,7 +335,9 @@ const UserDashboard = ({ currentUser, onLogout }) => {
                 </div>
                 {searchTerm && (
                   <div className="mt-2 text-xs text-gray-500">
-                    {searchLoading ? 'Mencari...' : 'Mencari secara otomatis dalam 0.5 detik...'}
+                    {searchLoading
+                      ? "Mencari..."
+                      : "Mencari secara otomatis dalam 0.5 detik..."}
                   </div>
                 )}
               </div>
@@ -343,31 +357,42 @@ const UserDashboard = ({ currentUser, onLogout }) => {
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan="5" className="text-center py-8 text-gray-500">
+                        <td
+                          colSpan="5"
+                          className="text-center py-8 text-gray-500"
+                        >
                           Memuat data...
                         </td>
                       </tr>
                     ) : games.length === 0 ? (
                       <tr>
-                        <td colSpan="5" className="text-center py-8 text-gray-500">
+                        <td
+                          colSpan="5"
+                          className="text-center py-8 text-gray-500"
+                        >
                           Tidak ada game yang ditemukan
                         </td>
                       </tr>
                     ) : (
                       games
-                        .filter(game => !cart.find(cartItem => cartItem.id === game.id))
-                        .map(game => (
+                        .filter(
+                          (game) =>
+                            !cart.find((cartItem) => cartItem.id === game.id)
+                        )
+                        .map((game) => (
                           <tr key={game.id} className="hover:bg-gray-50">
                             <td>
-                              <img 
-                                src={game.image_url} 
+                              <img
+                                src={game.image_url}
                                 alt={game.name}
                                 className="w-12 h-12 object-cover rounded-lg"
                               />
                             </td>
                             <td>
                               <div>
-                                <p className="font-semibold text-gray-900">{game.name}</p>
+                                <p className="font-semibold text-gray-900">
+                                  {game.name}
+                                </p>
                               </div>
                             </td>
                             <td>
@@ -377,10 +402,12 @@ const UserDashboard = ({ currentUser, onLogout }) => {
                               </span>
                             </td>
                             <td>
-                              <span className="text-sm text-gray-600">{game.size_gb} GB</span>
+                              <span className="text-sm text-gray-600">
+                                {game.size_gb} GB
+                              </span>
                             </td>
                             <td>
-                              <button 
+                              <button
                                 className="btn btn-primary py-2 px-3 text-xs flex items-center gap-1"
                                 onClick={() => addToCart(game)}
                               >
@@ -399,7 +426,14 @@ const UserDashboard = ({ currentUser, onLogout }) => {
               {pagination.totalPages > 1 && (
                 <div className="flex justify-between items-center mt-6">
                   <div className="text-sm text-gray-600">
-                    Menampilkan {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} - {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} dari {pagination.totalItems} game
+                    Menampilkan{" "}
+                    {(pagination.currentPage - 1) * pagination.itemsPerPage + 1}{" "}
+                    -{" "}
+                    {Math.min(
+                      pagination.currentPage * pagination.itemsPerPage,
+                      pagination.totalItems
+                    )}{" "}
+                    dari {pagination.totalItems} game
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -410,7 +444,8 @@ const UserDashboard = ({ currentUser, onLogout }) => {
                       <ChevronLeft className="w-4 h-4" />
                     </button>
                     <span className="flex items-center px-3 py-2 text-sm">
-                      Halaman {pagination.currentPage} dari {pagination.totalPages}
+                      Halaman {pagination.currentPage} dari{" "}
+                      {pagination.totalPages}
                     </span>
                     <button
                       onClick={() => setCurrentPage(currentPage + 1)}
@@ -431,7 +466,7 @@ const UserDashboard = ({ currentUser, onLogout }) => {
               <ShoppingCart className="w-5 h-5" />
               Keranjang
             </h2>
-            
+
             {cart.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <ShoppingCart className="w-12 h-12 mx-auto mb-2 text-gray-300" />
@@ -440,20 +475,27 @@ const UserDashboard = ({ currentUser, onLogout }) => {
             ) : (
               <>
                 <div className="mb-4 space-y-2">
-                  {cart.map(game => (
-                    <div key={game.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                  {cart.map((game) => (
+                    <div
+                      key={game.id}
+                      className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+                    >
                       <div className="flex items-center gap-3">
-                        <img 
-                          src={game.image_url} 
+                        <img
+                          src={game.image_url}
                           alt={game.name}
                           className="w-8 h-8 object-cover rounded"
                         />
                         <div>
-                          <p className="font-semibold text-gray-900 text-sm">{game.name}</p>
-                          <p className="text-xs text-gray-600">{game.size_gb} GB</p>
+                          <p className="font-semibold text-gray-900 text-sm">
+                            {game.name}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            {game.size_gb} GB
+                          </p>
                         </div>
                       </div>
-                      <button 
+                      <button
                         className="btn btn-danger p-1 text-xs"
                         onClick={() => removeFromCart(game.id)}
                       >
@@ -462,7 +504,7 @@ const UserDashboard = ({ currentUser, onLogout }) => {
                     </div>
                   ))}
                 </div>
-                
+
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg">
                   <p className="font-semibold text-gray-900 text-sm">
                     Total: {getTotalSize().toFixed(1)} GB
@@ -476,29 +518,35 @@ const UserDashboard = ({ currentUser, onLogout }) => {
               Pilih Flashdisk
             </h3>
             <div className="grid grid-cols-1 gap-2 mb-4">
-              {flashdisks.map(flashdisk => (
-                <div 
+              {flashdisks.map((flashdisk) => (
+                <div
                   key={flashdisk.id}
                   className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                    selectedFlashdisk?.id === flashdisk.id 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'border-gray-200 hover:border-gray-300'
+                    selectedFlashdisk?.id === flashdisk.id
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-gray-300"
                   }`}
                   onClick={() => handleFlashdiskSelect(flashdisk)}
                 >
                   <div className="flex items-center gap-2">
                     <HardDrive className="w-4 h-4 text-gray-600" />
                     <div>
-                      <p className="font-semibold text-gray-900 text-sm">{flashdisk.name}</p>
-                      <p className="text-xs text-gray-600">{flashdisk.capacity_gb} GB</p>
-                      <p className="text-xs text-gray-500">Rp {flashdisk.price.toLocaleString()}</p>
+                      <p className="font-semibold text-gray-900 text-sm">
+                        {flashdisk.name}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        {flashdisk.capacity_gb} GB
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Rp {flashdisk.price.toLocaleString()}
+                      </p>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
 
-            <button 
+            <button
               className="btn btn-primary w-full flex items-center justify-center gap-2"
               onClick={handleCreateOrder}
               disabled={cart.length === 0 || !selectedFlashdisk}
@@ -519,51 +567,57 @@ const UserDashboard = ({ currentUser, onLogout }) => {
                 <User className="w-5 h-5" />
                 Informasi Pengguna
               </h2>
-              <button 
+              <button
                 className="text-2xl text-gray-400 hover:text-gray-600 cursor-pointer"
                 onClick={() => setShowUserInfoModal(false)}
               >
                 ×
               </button>
             </div>
-            
-            <form onSubmit={(e) => { e.preventDefault(); createOrder(); }}>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                createOrder();
+              }}
+            >
               <div className="form-group">
                 <label className="form-label">Nama Lengkap</label>
                 <input
                   type="text"
                   className="form-input"
                   value={userInfo.user_name}
-                  onChange={(e) => setUserInfo({...userInfo, user_name: e.target.value})}
+                  onChange={(e) =>
+                    setUserInfo({ ...userInfo, user_name: e.target.value })
+                  }
                   placeholder="Masukkan nama lengkap"
                   required
                 />
               </div>
-              
+
               <div className="form-group">
                 <label className="form-label">Alamat Lengkap</label>
                 <textarea
                   className="form-input"
                   rows="4"
                   value={userInfo.user_address}
-                  onChange={(e) => setUserInfo({...userInfo, user_address: e.target.value})}
+                  onChange={(e) =>
+                    setUserInfo({ ...userInfo, user_address: e.target.value })
+                  }
                   placeholder="Masukkan alamat lengkap"
                   required
                 />
               </div>
-              
+
               <div className="flex gap-3 mt-6">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn btn-outline flex-1"
                   onClick={() => setShowUserInfoModal(false)}
                 >
                   Batal
                 </button>
-                <button 
-                  type="submit" 
-                  className="btn btn-primary flex-1"
-                >
+                <button type="submit" className="btn btn-primary flex-1">
                   Buat Pesanan
                 </button>
               </div>
@@ -581,37 +635,59 @@ const UserDashboard = ({ currentUser, onLogout }) => {
                 <Package className="w-5 h-5" />
                 Pesanan Berhasil Dibuat!
               </h2>
-              <button 
+              <button
                 className="text-2xl text-gray-400 hover:text-gray-600 cursor-pointer"
                 onClick={closeOrderModal}
               >
                 ×
               </button>
             </div>
-            
+
             <div>
-              <p className="mb-4 text-gray-700">Screenshot halaman ini dan kirim ke admin:</p>
-              
+              <p className="mb-4 text-gray-700">
+                Screenshot halaman ini dan kirim ke admin:
+              </p>
+
               <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                <p className="mb-2"><strong>ID Transaksi:</strong> {transactionId}</p>
-                <p className="mb-2"><strong>Nama:</strong> {orderData.user_name}</p>
-                <p className="mb-2"><strong>Alamat:</strong> {orderData.user_address}</p>
-                <p className="mb-2"><strong>Flashdisk:</strong> {orderData.flashdisk?.name} ({orderData.flashdisk?.capacity_gb} GB)</p>
-                <p className="mb-2"><strong>Total Size:</strong> {orderData.totalSize.toFixed(1)} GB</p>
-                <p className="mb-2"><strong>Total Harga:</strong> Rp {orderData.totalPrice.toLocaleString()}</p>
+                <p className="mb-2">
+                  <strong>ID Transaksi:</strong> {transactionId}
+                </p>
+                <p className="mb-2">
+                  <strong>Nama:</strong> {orderData.user_name}
+                </p>
+                <p className="mb-2">
+                  <strong>Alamat:</strong> {orderData.user_address}
+                </p>
+                <p className="mb-2">
+                  <strong>Flashdisk:</strong> {orderData.flashdisk?.name} (
+                  {orderData.flashdisk?.capacity_gb} GB)
+                </p>
+                <p className="mb-2">
+                  <strong>Total Size:</strong> {orderData.totalSize.toFixed(1)}{" "}
+                  GB
+                </p>
+                <p className="mb-2">
+                  <strong>Total Harga:</strong> Rp{" "}
+                  {orderData.totalPrice.toLocaleString()}
+                </p>
               </div>
-              
+
               <div>
-                <h4 className="font-semibold mb-2 text-gray-900">Game yang Dipilih:</h4>
+                <h4 className="font-semibold mb-2 text-gray-900">
+                  Game yang Dipilih:
+                </h4>
                 <ul className="space-y-2">
-                  {orderData.games.map(game => (
-                    <li key={game.id} className="py-2 border-b border-gray-200 last:border-b-0">
+                  {orderData.games.map((game) => (
+                    <li
+                      key={game.id}
+                      className="py-2 border-b border-gray-200 last:border-b-0"
+                    >
                       {game.name} - {game.size_gb} GB
                     </li>
                   ))}
                 </ul>
               </div>
-              
+
               <div className="mt-6">
                 <button className="btn btn-primary" onClick={closeOrderModal}>
                   Tutup
@@ -631,16 +707,33 @@ const UserDashboard = ({ currentUser, onLogout }) => {
         />
       )}
 
-      {/* WhatsApp Floating Button */}
-      <a
-        href="https://wa.me/62882007903929"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 bg-green-500 hover:bg-green-600 text-white p-4 rounded-full shadow-lg transition-all duration-300 hover:scale-110 z-50"
-        title="Hubungi kami via WhatsApp"
-      >
-        <MessageCircle className="w-6 h-6" />
-      </a>
+      {/* Floating Buttons */}
+      <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-50">
+        {/* WhatsApp Button */}
+        <a
+          href="https://wa.me/62882007903929"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white p-4 rounded-full shadow-lg transition-all duration-300 hover:scale-110"
+          title="Hubungi kami via WhatsApp"
+        >
+          <MessageCircle className="w-6 h-6" />
+        </a>
+      </div>
+
+      <div className="gap-3 fixed bottom-24 right-6 z-50">
+        {/* Toko Admin Button */}
+        <a
+          href="https://s.shopee.co.id/2B43wqJZ1E"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white p-4 rounded-full shadow-lg transition-all duration-300 hover:scale-110"
+          title="Kunjungi Toko Admin di Shopee"
+        >
+          <Store className="w-6 h-6" />
+          Shopee
+        </a>
+      </div>
     </div>
   );
 };
@@ -648,9 +741,9 @@ const UserDashboard = ({ currentUser, onLogout }) => {
 UserDashboard.propTypes = {
   currentUser: PropTypes.shape({
     username: PropTypes.string.isRequired,
-    role: PropTypes.string.isRequired
+    role: PropTypes.string.isRequired,
   }).isRequired,
-  onLogout: PropTypes.func.isRequired
+  onLogout: PropTypes.func.isRequired,
 };
 
 export default UserDashboard;
