@@ -37,10 +37,15 @@ const AdminFlashdisks = () => {
   const handleFlashdiskSubmit = async (e) => {
     e.preventDefault();
     try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+      
       if (editingFlashdisk) {
-        await axios.put(`${API_BASE}/flashdisks/${editingFlashdisk.id}`, flashdiskForm);
+        await axios.put(`${API_BASE}/flashdisks/${editingFlashdisk.id}`, flashdiskForm, { headers });
       } else {
-        await axios.post(`${API_BASE}/flashdisks`, flashdiskForm);
+        await axios.post(`${API_BASE}/flashdisks`, flashdiskForm, { headers });
       }
       
       setShowFlashdiskModal(false);
@@ -60,7 +65,12 @@ const AdminFlashdisks = () => {
   const handleDeleteFlashdisk = async (id) => {
     if (window.confirm('Apakah Anda yakin ingin menghapus flashdisk ini?')) {
       try {
-        await axios.delete(`${API_BASE}/flashdisks/${id}`);
+        const token = localStorage.getItem('token');
+        await axios.delete(`${API_BASE}/flashdisks/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         fetchFlashdisks();
       } catch (error) {
         console.error('Error deleting flashdisk:', error);
