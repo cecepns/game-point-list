@@ -731,7 +731,6 @@ const UserDashboard = ({ currentUser, onLogout }) => {
           title="Kunjungi Toko Admin di Shopee"
         >
           <Store className="w-6 h-6" />
-          Shopee
         </a>
       </div>
     </div>

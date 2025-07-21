@@ -512,9 +512,44 @@ const updateFlashdisk = async (req, res) => {
     const { id } = req.params;
     const { name, capacity_gb, real_capacity_gb, price, is_active } = req.body;
     
+    // Build update query dynamically based on provided fields
+    let updateFields = [];
+    let updateParams = [];
+    
+    if (name !== undefined) {
+      updateFields.push('name = ?');
+      updateParams.push(name);
+    }
+    
+    if (capacity_gb !== undefined) {
+      updateFields.push('capacity_gb = ?');
+      updateParams.push(capacity_gb);
+    }
+    
+    if (real_capacity_gb !== undefined) {
+      updateFields.push('real_capacity_gb = ?');
+      updateParams.push(real_capacity_gb);
+    }
+    
+    if (price !== undefined) {
+      updateFields.push('price = ?');
+      updateParams.push(price);
+    }
+    
+    if (is_active !== undefined) {
+      updateFields.push('is_active = ?');
+      updateParams.push(is_active);
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    updateParams.push(id);
+    
     await pool.execute(
-      'UPDATE flashdisks SET name = ?, capacity_gb = ?, real_capacity_gb = ?, price = ?, is_active = ? WHERE id = ?',
-      [name, capacity_gb, real_capacity_gb, price, is_active, id]
+      `UPDATE flashdisks SET ${updateFields.join(', ')} WHERE id = ?`,
+      updateParams
     );
     
     res.json({ message: 'Flashdisk updated successfully' });
