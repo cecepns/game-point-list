@@ -1,8 +1,11 @@
 import mysql from 'mysql2/promise';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
+import process from 'process';
 
 dotenv.config();
+
+const DEFAULT_GAME_CATEGORIES = ['PSP', 'PS 1', 'PS 2', 'PS 2 RIP Version', 'PS 2 MOD'];
 
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
@@ -52,7 +55,7 @@ async function setupDatabase() {
       CREATE TABLE IF NOT EXISTS games (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
-        category VARCHAR(100) NOT NULL,
+        category TEXT NOT NULL,
         image_url TEXT,
         size_gb DECIMAL(5,2) NOT NULL,
         status VARCHAR(50) DEFAULT 'available',
@@ -61,6 +64,16 @@ async function setupDatabase() {
       )
     `);
     console.log('Games table created or already exists');
+
+    // Create game_categories table
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS game_categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Game categories table created or already exists');
 
     // Create flashdisks table with real_capacity_gb
     await connection.execute(`
@@ -93,13 +106,38 @@ async function setupDatabase() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         transaction_id VARCHAR(50) UNIQUE NOT NULL,
         user_name VARCHAR(100) NOT NULL,
+        user_address TEXT,
         flashdisk_id INT,
         total_size_gb DECIMAL(5,2) NOT NULL,
+        play_on_platform VARCHAR(50),
         status VARCHAR(50) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (flashdisk_id) REFERENCES flashdisks(id)
       )
     `);
+    // Ensure user_address and play_on_platform columns exist for older schemas
+    try {
+      await connection.execute('SELECT user_address FROM transactions LIMIT 1');
+    } catch (error) {
+      if (error.code === 'ER_BAD_FIELD_ERROR') {
+        await connection.execute('ALTER TABLE transactions ADD COLUMN user_address TEXT AFTER user_name');
+      }
+    }
+
+    try {
+      await connection.execute('SELECT play_on_platform FROM transactions LIMIT 1');
+    } catch (error) {
+      if (error.code === 'ER_BAD_FIELD_ERROR') {
+        await connection.execute('ALTER TABLE transactions ADD COLUMN play_on_platform VARCHAR(50) AFTER total_size_gb');
+      }
+    }
+
+    // Seed default game categories
+    for (const category of DEFAULT_GAME_CATEGORIES) {
+      await connection.execute('INSERT IGNORE INTO game_categories (name) VALUES (?)', [category]);
+    }
+    console.log('Default game categories seeded');
+
     console.log('Transactions table created or already exists');
 
     // Create transaction_games table
@@ -131,12 +169,12 @@ async function setupDatabase() {
     // Insert sample games
     await connection.execute(`
       INSERT IGNORE INTO games (name, category, image_url, size_gb, status) VALUES
-      ('Grand Theft Auto V', 'Action', 'https://images.pexels.com/photos/442576/pexels-photo-442576.jpeg?auto=compress&cs=tinysrgb&w=500', 95.0, 'available'),
-      ('Red Dead Redemption 2', 'Action', 'https://images.pexels.com/photos/1174746/pexels-photo-1174746.jpeg?auto=compress&cs=tinysrgb&w=500', 120.0, 'available'),
-      ('Cyberpunk 2077', 'RPG', 'https://images.pexels.com/photos/2047905/pexels-photo-2047905.jpeg?auto=compress&cs=tinysrgb&w=500', 70.0, 'available'),
-      ('The Witcher 3', 'RPG', 'https://images.pexels.com/photos/3165335/pexels-photo-3165335.jpeg?auto=compress&cs=tinysrgb&w=500', 50.0, 'available'),
-      ('FIFA 24', 'Sports', 'https://images.pexels.com/photos/274422/pexels-photo-274422.jpeg?auto=compress&cs=tinysrgb&w=500', 35.0, 'available'),
-      ('Call of Duty: Modern Warfare', 'FPS', 'https://images.pexels.com/photos/3165335/pexels-photo-3165335.jpeg?auto=compress&cs=tinysrgb&w=500', 85.0, 'available')
+      ('Grand Theft Auto V', 'PS 2', 'https://images.pexels.com/photos/442576/pexels-photo-442576.jpeg?auto=compress&cs=tinysrgb&w=500', 95.0, 'available'),
+      ('Red Dead Redemption 2', 'PS 2 RIP Version', 'https://images.pexels.com/photos/1174746/pexels-photo-1174746.jpeg?auto=compress&cs=tinysrgb&w=500', 120.0, 'available'),
+      ('Cyberpunk 2077', 'PSP', 'https://images.pexels.com/photos/2047905/pexels-photo-2047905.jpeg?auto=compress&cs=tinysrgb&w=500', 70.0, 'available'),
+      ('The Witcher 3', 'PS 1', 'https://images.pexels.com/photos/3165335/pexels-photo-3165335.jpeg?auto=compress&cs=tinysrgb&w=500', 50.0, 'available'),
+      ('FIFA 24', 'PS 2 MOD', 'https://images.pexels.com/photos/274422/pexels-photo-274422.jpeg?auto=compress&cs=tinysrgb&w=500', 35.0, 'available'),
+      ('Call of Duty: Modern Warfare', 'PS 2', 'https://images.pexels.com/photos/3165335/pexels-photo-3165335.jpeg?auto=compress&cs=tinysrgb&w=500', 85.0, 'available')
     `);
     console.log('Sample games created');
 

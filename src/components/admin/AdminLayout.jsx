@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { 
   Gamepad2, 
+  Tags,
   HardDrive, 
   ShoppingCart, 
   LogOut,
@@ -19,6 +20,7 @@ const AdminLayout = ({ currentUser, onLogout }) => {
 
   const navigation = [
     { name: 'Kelola Game', href: '/admin/games', icon: Gamepad2 },
+    { name: 'Kategori Game', href: '/admin/categories', icon: Tags },
     { name: 'Kelola Flashdisk', href: '/admin/flashdisks', icon: HardDrive },
     { name: 'Kelola User', href: '/admin/users', icon: User },
     { name: 'Transaksi', href: '/admin/transactions', icon: ShoppingCart },

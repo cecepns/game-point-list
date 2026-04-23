@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import PropTypes from "prop-types";
 import {
@@ -37,11 +37,55 @@ const useDebounce = (value, delay) => {
   return debouncedValue;
 };
 
+const PLAYABLE_PLATFORM_OPTIONS = [
+  "ANDROID",
+  "CONSOLE PS 2",
+  "LAPTOP / PC",
+  "ANDROID TV",
+];
+
+const normalizeText = (value = "") =>
+  value.toString().trim().replace(/\s+/g, " ").toUpperCase();
+
+const parseCategoryList = (value) => {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean);
+  }
+
+  if (typeof value !== "string" || !value.trim()) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+const isPlatformCompatibleWithCategory = (category, platform) => {
+  const normalizedCategory = normalizeText(category);
+  const normalizedPlatform = normalizeText(platform);
+
+  if (normalizedCategory.startsWith("PS 2") && normalizedPlatform === "ANDROID TV") {
+    return false;
+  }
+
+  if (
+    (normalizedCategory === "PSP" || normalizedCategory === "PS 1") &&
+    normalizedPlatform === "CONSOLE PS 2"
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
 const UserDashboard = ({ currentUser, onLogout }) => {
   const [games, setGames] = useState([]);
   const [flashdisks, setFlashdisks] = useState([]);
   const [cart, setCart] = useState([]);
   const [selectedFlashdisk, setSelectedFlashdisk] = useState(null);
+  const [selectedPlayPlatform, setSelectedPlayPlatform] = useState("");
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showUserInfoModal, setShowUserInfoModal] = useState(false);
   const [transactionId, setTransactionId] = useState("");
@@ -61,6 +105,7 @@ const UserDashboard = ({ currentUser, onLogout }) => {
     totalPrice: 0,
     user_name: "",
     user_address: "",
+    play_on_platform: "",
   });
 
   // Search and pagination states
@@ -149,6 +194,42 @@ const UserDashboard = ({ currentUser, onLogout }) => {
     setCart(cart.filter((item) => item.id !== gameId));
   };
 
+  const getGameCategories = (game) =>
+    parseCategoryList(game.categories?.length ? game.categories : game.category);
+
+  const blockedPlatforms = useMemo(() => {
+    const blockedMap = new Map();
+
+    cart.forEach((game) => {
+      getGameCategories(game).forEach((category) => {
+        PLAYABLE_PLATFORM_OPTIONS.forEach((platform) => {
+          if (!isPlatformCompatibleWithCategory(category, platform)) {
+            const existingCategories = blockedMap.get(platform) || [];
+            if (!existingCategories.includes(category)) {
+              blockedMap.set(platform, [...existingCategories, category]);
+            }
+          }
+        });
+      });
+    });
+
+    return blockedMap;
+  }, [cart]);
+  const allowedPlatforms = PLAYABLE_PLATFORM_OPTIONS.filter(
+    (platform) => !blockedPlatforms.has(platform)
+  );
+
+  useEffect(() => {
+    if (selectedPlayPlatform && blockedPlatforms.has(selectedPlayPlatform)) {
+      setSelectedPlayPlatform("");
+      setToast({
+        message:
+          "Platform permainan di-reset karena ada kategori game yang tidak kompatibel.",
+        type: "error",
+      });
+    }
+  }, [blockedPlatforms, selectedPlayPlatform]);
+
   const getTotalSize = () => {
     return cart.reduce((total, game) => total + parseFloat(game.size_gb), 0);
   };
@@ -165,6 +246,11 @@ const UserDashboard = ({ currentUser, onLogout }) => {
 
     if (!selectedFlashdisk) {
       setToast({ message: "Pilih flashdisk terlebih dahulu!", type: "error" });
+      return;
+    }
+
+    if (!selectedPlayPlatform) {
+      setToast({ message: "Pilih platform dimainkan terlebih dahulu!", type: "error" });
       return;
     }
 
@@ -203,6 +289,7 @@ const UserDashboard = ({ currentUser, onLogout }) => {
         flashdisk_id: selectedFlashdisk.id,
         games: cart,
         total_size_gb: totalSize,
+        play_on_platform: selectedPlayPlatform,
       };
 
       const response = await axios.post(`${API_BASE}/transactions`, orderData);
@@ -216,6 +303,7 @@ const UserDashboard = ({ currentUser, onLogout }) => {
         totalPrice: selectedFlashdisk.price,
         user_name: userInfo.user_name,
         user_address: userInfo.user_address,
+        play_on_platform: selectedPlayPlatform,
       });
 
       setShowUserInfoModal(false);
@@ -225,6 +313,7 @@ const UserDashboard = ({ currentUser, onLogout }) => {
       // Reset cart and selection
       setCart([]);
       setSelectedFlashdisk(null);
+      setSelectedPlayPlatform("");
       setUserInfo({ user_name: "", user_address: "" });
     } catch (error) {
       console.error("Error creating order:", error);
@@ -245,25 +334,20 @@ const UserDashboard = ({ currentUser, onLogout }) => {
       totalPrice: 0,
       user_name: "",
       user_address: "",
+      play_on_platform: "",
     });
   };
 
   const getCategoryIcon = (category) => {
-    switch (category.toLowerCase()) {
-      case "action":
-        return "⚔️";
-      case "adventure":
-        return "🗺️";
-      case "rpg":
-        return "⚔️";
-      case "strategy":
-        return "🎯";
-      case "sports":
-        return "⚽";
-      case "racing":
-        return "🏎️";
-      case "puzzle":
-        return "🧩";
+    switch (normalizeText(category)) {
+      case "PSP":
+        return "🕹️";
+      case "PS 1":
+        return "🎮";
+      case "PS 2":
+      case "PS 2 RIP VERSION":
+      case "PS 2 MOD":
+        return "🧿";
       default:
         return "🎮";
     }
@@ -396,10 +480,17 @@ const UserDashboard = ({ currentUser, onLogout }) => {
                               </div>
                             </td>
                             <td>
-                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                                <span>{getCategoryIcon(game.category)}</span>
-                                {game.category}
-                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                {getGameCategories(game).map((category) => (
+                                  <span
+                                    key={`${game.id}-${category}`}
+                                    className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                                  >
+                                    <span>{getCategoryIcon(category)}</span>
+                                    {category}
+                                  </span>
+                                ))}
+                              </div>
                             </td>
                             <td>
                               <span className="text-sm text-gray-600">
@@ -461,99 +552,147 @@ const UserDashboard = ({ currentUser, onLogout }) => {
           </div>
 
           {/* Cart and Order */}
-          <div className="card">
-            <h2 className="text-xl font-bold mb-4 text-gray-900 flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5" />
-              Keranjang
-            </h2>
-
-            {cart.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <ShoppingCart className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                <p>Keranjang masih kosong</p>
-              </div>
-            ) : (
-              <>
-                <div className="mb-4 space-y-2">
-                  {cart.map((game) => (
-                    <div
-                      key={game.id}
-                      className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={game.image_url}
-                          alt={game.name}
-                          className="w-8 h-8 object-cover rounded"
-                        />
-                        <div>
-                          <p className="font-semibold text-gray-900 text-sm">
-                            {game.name}
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            {game.size_gb} GB
-                          </p>
-                        </div>
+          <div className="space-y-6 lg:sticky lg:top-8 self-start">
+            <div className="card">
+              <h3 className="text-lg font-semibold mb-3 text-gray-900 flex items-center gap-2">
+                <HardDrive className="w-5 h-5" />
+                Pilih Flashdisk
+              </h3>
+              <div className="grid grid-cols-1 gap-2 mb-6 max-h-72 overflow-y-auto pr-1">
+                {flashdisks.map((flashdisk) => (
+                  <div
+                    key={flashdisk.id}
+                    className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                      selectedFlashdisk?.id === flashdisk.id
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                    onClick={() => handleFlashdiskSelect(flashdisk)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <HardDrive className="w-4 h-4 text-gray-600" />
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">
+                          {flashdisk.name}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {flashdisk.capacity_gb} GB
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Rp {flashdisk.price.toLocaleString()}
+                        </p>
                       </div>
-                      <button
-                        className="btn btn-danger p-1 text-xs"
-                        onClick={() => removeFromCart(game.id)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="font-semibold text-gray-900 text-sm">
-                    Total: {getTotalSize().toFixed(1)} GB
-                  </p>
-                </div>
-              </>
-            )}
-
-            <h3 className="text-lg font-semibold mb-3 text-gray-900 flex items-center gap-2">
-              <HardDrive className="w-5 h-5" />
-              Pilih Flashdisk
-            </h3>
-            <div className="grid grid-cols-1 gap-2 mb-4">
-              {flashdisks.map((flashdisk) => (
-                <div
-                  key={flashdisk.id}
-                  className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                    selectedFlashdisk?.id === flashdisk.id
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                  onClick={() => handleFlashdiskSelect(flashdisk)}
-                >
-                  <div className="flex items-center gap-2">
-                    <HardDrive className="w-4 h-4 text-gray-600" />
-                    <div>
-                      <p className="font-semibold text-gray-900 text-sm">
-                        {flashdisk.name}
-                      </p>
-                      <p className="text-xs text-gray-600">
-                        {flashdisk.capacity_gb} GB
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Rp {flashdisk.price.toLocaleString()}
-                      </p>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+
+              <div className="form-group mb-4">
+                <label className="form-label">Dimainkan di</label>
+                <select
+                  className="form-input cursor-pointer"
+                  value={selectedPlayPlatform}
+                  onChange={(e) => setSelectedPlayPlatform(e.target.value)}
+                  disabled={!cart.length}
+                >
+                  <option value="">Pilih platform permainan</option>
+                  {PLAYABLE_PLATFORM_OPTIONS.map((platform) => (
+                    <option
+                      key={platform}
+                      value={platform}
+                      disabled={blockedPlatforms.has(platform)}
+                    >
+                      {platform}
+                    </option>
+                  ))}
+                </select>
+                {!cart.length && (
+                  <p className="mt-2 text-xs text-gray-500">
+                    Tambahkan game ke keranjang untuk melihat opsi platform yang valid.
+                  </p>
+                )}
+                {cart.length > 0 && allowedPlatforms.length === 0 && (
+                  <p className="mt-2 text-xs text-red-600">
+                    Kombinasi kategori game saat ini belum punya platform yang kompatibel.
+                  </p>
+                )}
+                {cart.length > 0 &&
+                  PLAYABLE_PLATFORM_OPTIONS.filter((platform) =>
+                    blockedPlatforms.has(platform)
+                  ).map((platform) => (
+                    <p key={platform} className="mt-1 text-xs text-amber-600">
+                      {platform} tidak tersedia untuk kategori{" "}
+                      {(blockedPlatforms.get(platform) || []).join(", ")}.
+                    </p>
+                  ))}
+              </div>
+
+              <button
+                className="btn btn-primary w-full flex items-center justify-center gap-2"
+                onClick={handleCreateOrder}
+                disabled={
+                  cart.length === 0 ||
+                  !selectedFlashdisk ||
+                  !selectedPlayPlatform ||
+                  allowedPlatforms.length === 0
+                }
+              >
+                <Package className="w-4 h-4" />
+                Buat Pesanan
+              </button>
             </div>
 
-            <button
-              className="btn btn-primary w-full flex items-center justify-center gap-2"
-              onClick={handleCreateOrder}
-              disabled={cart.length === 0 || !selectedFlashdisk}
-            >
-              <Package className="w-4 h-4" />
-              Buat Pesanan
-            </button>
+            <div className="card">
+              <h2 className="text-xl font-bold mb-4 text-gray-900 flex items-center gap-2">
+                <ShoppingCart className="w-5 h-5" />
+                Keranjang
+              </h2>
+              {cart.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <ShoppingCart className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                  <p>Keranjang masih kosong</p>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4 space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {cart.map((game) => (
+                      <div
+                        key={game.id}
+                        className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={game.image_url}
+                            alt={game.name}
+                            className="w-8 h-8 object-cover rounded"
+                          />
+                          <div>
+                            <p className="font-semibold text-gray-900 text-sm">
+                              {game.name}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              {game.size_gb} GB
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          className="btn btn-danger p-1 text-xs"
+                          onClick={() => removeFromCart(game.id)}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <p className="font-semibold text-gray-900 text-sm">
+                      Total: {getTotalSize().toFixed(1)} GB
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -661,6 +800,9 @@ const UserDashboard = ({ currentUser, onLogout }) => {
                 <p className="mb-2">
                   <strong>Flashdisk:</strong> {orderData.flashdisk?.name} (
                   {orderData.flashdisk?.capacity_gb} GB)
+                </p>
+                <p className="mb-2">
+                  <strong>Dimainkan di:</strong> {orderData.play_on_platform}
                 </p>
                 <p className="mb-2">
                   <strong>Total Size:</strong> {orderData.totalSize.toFixed(1)}{" "}

@@ -219,14 +219,12 @@ const AdminTransactions = () => {
                     <td className="font-medium text-gray-900">
                       <div className="flex flex-col">
                         <span>{transaction.user_name}</span>
-                        <span className="text-xs text-gray-500 lg:hidden">
-                          {transaction.user_address && transaction.user_address.length > 30 
-                            ? `${transaction.user_address.substring(0, 30)}...` 
-                            : transaction.user_address}
+                        <span className="text-xs text-gray-500 lg:hidden whitespace-normal break-words">
+                          {transaction.user_address}
                         </span>
                       </div>
                     </td>
-                    <td className="text-gray-600 hidden lg:table-cell max-w-xs truncate">
+                    <td className="text-gray-600 hidden lg:table-cell whitespace-normal break-words">
                       {transaction.user_address}
                     </td>
                     <td className="text-gray-600 hidden md:table-cell">{transaction.flashdisk_name}</td>

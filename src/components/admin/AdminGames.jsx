@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import CreatableSelect from 'react-select/creatable';
 import { 
   Gamepad2, 
   Plus, 
@@ -14,7 +15,9 @@ import {
 import useDebounce from '../../hooks/useDebounce';
 
 const AdminGames = () => {
+  const DEFAULT_GAME_CATEGORIES = ['PSP', 'PS 1', 'PS 2', 'PS 2 RIP Version', 'PS 2 MOD'];
   const [games, setGames] = useState([]);
+  const [categoryOptions, setCategoryOptions] = useState([]);
   const [showGameModal, setShowGameModal] = useState(false);
   const [editingGame, setEditingGame] = useState(null);
   
@@ -37,7 +40,7 @@ const AdminGames = () => {
   
   const [gameForm, setGameForm] = useState({
     name: '',
-    category: '',
+    category: [],
     image_url: '',
     size_gb: '',
     status: 'available'
@@ -48,6 +51,39 @@ const AdminGames = () => {
   useEffect(() => {
     fetchGames();
   }, [currentPage, debouncedSearchTerm]);
+
+  useEffect(() => {
+    fetchCategoryOptions();
+  }, []);
+
+  const parseCategoryList = (value) => {
+    if (Array.isArray(value)) {
+      return value.filter(Boolean);
+    }
+
+    if (typeof value !== 'string' || !value.trim()) {
+      return [];
+    }
+
+    return value.split(',').map((item) => item.trim()).filter(Boolean);
+  };
+
+  const toCategoryOptions = (categories) => categories.map((category) => ({
+    value: category,
+    label: category
+  }));
+
+  const fetchCategoryOptions = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/games/categories`);
+      const fetchedCategories = response.data?.categories || [];
+      const uniqueCategories = Array.from(new Set([...DEFAULT_GAME_CATEGORIES, ...fetchedCategories]));
+      setCategoryOptions(toCategoryOptions(uniqueCategories));
+    } catch (error) {
+      console.error('Error fetching game categories:', error);
+      setCategoryOptions(toCategoryOptions(DEFAULT_GAME_CATEGORIES));
+    }
+  };
 
   const fetchGames = useCallback(async () => {
     setLoading(true);
@@ -84,6 +120,11 @@ const AdminGames = () => {
 
   const handleGameSubmit = async (e) => {
     e.preventDefault();
+    if (!gameForm.category.length) {
+      alert('Minimal pilih 1 kategori game');
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       const headers = {
@@ -100,11 +141,12 @@ const AdminGames = () => {
       setEditingGame(null);
       setGameForm({
         name: '',
-        category: '',
+        category: [],
         image_url: '',
         size_gb: '',
         status: 'available'
       });
+      fetchCategoryOptions();
       fetchGames();
     } catch (error) {
       console.error('Error saving game:', error);
@@ -129,9 +171,10 @@ const AdminGames = () => {
 
   const editGame = (game) => {
     setEditingGame(game);
+    const gameCategories = parseCategoryList(game.categories?.length ? game.categories : game.category);
     setGameForm({
       name: game.name,
-      category: game.category,
+      category: gameCategories,
       image_url: game.image_url,
       size_gb: game.size_gb,
       status: game.status
@@ -146,7 +189,20 @@ const AdminGames = () => {
           <Gamepad2 className="w-6 h-6" />
           Kelola Game
         </h1>
-        <button className="btn btn-primary flex items-center gap-2" onClick={() => setShowGameModal(true)}>
+        <button
+          className="btn btn-primary flex items-center gap-2"
+          onClick={() => {
+            setEditingGame(null);
+            setGameForm({
+              name: '',
+              category: [],
+              image_url: '',
+              size_gb: '',
+              status: 'available'
+            });
+            setShowGameModal(true);
+          }}
+        >
           <Plus className="w-4 h-4" />
           Tambah Game
         </button>
@@ -218,7 +274,18 @@ const AdminGames = () => {
                       <img src={game.image_url} alt={game.name} className="w-12 h-12 object-cover rounded-lg" />
                     </td>
                     <td className="font-medium text-gray-900">{game.name}</td>
-                    <td className="text-gray-600">{game.category}</td>
+                    <td className="text-gray-600">
+                      <div className="flex flex-wrap gap-1">
+                        {parseCategoryList(game.categories?.length ? game.categories : game.category).map((category) => (
+                          <span
+                            key={`${game.id}-${category}`}
+                            className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700"
+                          >
+                            {category}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="text-gray-600">{game.size_gb} GB</td>
                     <td>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -313,13 +380,20 @@ const AdminGames = () => {
               
               <div className="form-group">
                 <label className="form-label">Kategori</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={gameForm.category}
-                  onChange={(e) => setGameForm({...gameForm, category: e.target.value})}
-                  required
+                <CreatableSelect
+                  isMulti
+                  options={categoryOptions}
+                  value={toCategoryOptions(gameForm.category)}
+                  onChange={(selectedOptions) => {
+                    const values = (selectedOptions || []).map((option) => option.value);
+                    setGameForm({ ...gameForm, category: values });
+                  }}
+                  placeholder="Pilih atau ketik kategori game..."
+                  classNamePrefix="react-select"
                 />
+                <p className="mt-2 text-xs text-gray-500">
+                  Bisa pilih lebih dari satu kategori, atau ketik kategori baru.
+                </p>
               </div>
               
               <div className="form-group">

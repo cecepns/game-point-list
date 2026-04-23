@@ -7,6 +7,7 @@ import AdminGames from './components/admin/AdminGames';
 import AdminFlashdisks from './components/admin/AdminFlashdisks';
 import AdminUsers from './components/admin/AdminUsers';
 import AdminTransactions from './components/admin/AdminTransactions';
+import AdminCategories from './components/admin/AdminCategories';
 import UserDashboard from './components/UserDashboard';
 
 function App() {
@@ -70,6 +71,7 @@ function App() {
                   <Route path="/admin" element={<AdminLayout currentUser={currentUser} onLogout={handleLogout} />}>
                     <Route index element={<Navigate to="/admin/games" replace />} />
                     <Route path="games" element={<AdminGames />} />
+                    <Route path="categories" element={<AdminCategories />} />
                     <Route path="flashdisks" element={<AdminFlashdisks />} />
                     <Route path="users" element={<AdminUsers />} />
                     <Route path="transactions" element={<AdminTransactions />} />

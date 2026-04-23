@@ -27,7 +27,8 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Authentication middleware
 const authenticateToken = (req, res, next) => {
@@ -53,6 +54,134 @@ const requireAdmin = (req, res, next) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();
+};
+
+const DEFAULT_GAME_CATEGORIES = ['PSP', 'PS 1', 'PS 2', 'PS 2 RIP Version', 'PS 2 MOD'];
+const PLAYABLE_PLATFORMS = ['ANDROID', 'CONSOLE PS 2', 'LAPTOP / PC', 'ANDROID TV'];
+
+const normalizeText = (value = '') => value.toString().trim().replace(/\s+/g, ' ').toUpperCase();
+
+const parseCategoryList = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => item?.toString().trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(trimmedValue);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => item?.toString().trim())
+          .filter(Boolean);
+      }
+    } catch {
+      // Ignore JSON parse error and fallback to comma separated parsing.
+    }
+
+    return trimmedValue
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const formatCategoryString = (categoryInput) => {
+  const uniqueCategoryMap = new Map();
+  parseCategoryList(categoryInput).forEach((category) => {
+    uniqueCategoryMap.set(normalizeText(category), category);
+  });
+
+  return Array.from(uniqueCategoryMap.values()).join(', ');
+};
+
+const isPlatformCompatibleWithCategory = (category, platform) => {
+  const normalizedCategory = normalizeText(category);
+  const normalizedPlatform = normalizeText(platform);
+
+  if (normalizedCategory.startsWith('PS 2') && normalizedPlatform === 'ANDROID TV') {
+    return false;
+  }
+
+  if ((normalizedCategory === 'PSP' || normalizedCategory === 'PS 1') && normalizedPlatform === 'CONSOLE PS 2') {
+    return false;
+  }
+
+  return true;
+};
+
+const getIncompatibleCategories = (categories = [], platform) => {
+  return categories.filter((category) => !isPlatformCompatibleWithCategory(category, platform));
+};
+
+const ensureGameCategoriesExist = async (categories = []) => {
+  if (!categories.length) {
+    return;
+  }
+
+  const uniqueCategories = Array.from(
+    new Map(categories.map((category) => [normalizeText(category), category])).values()
+  );
+
+  for (const categoryName of uniqueCategories) {
+    try {
+      await pool.execute('INSERT IGNORE INTO game_categories (name) VALUES (?)', [categoryName]);
+    } catch (error) {
+      if (error.code !== 'ER_NO_SUCH_TABLE') {
+        throw error;
+      }
+    }
+  }
+};
+
+const replaceGameCategoryName = async (oldCategoryName, newCategoryName) => {
+  const normalizedOld = normalizeText(oldCategoryName);
+  const [candidateGames] = await pool.execute('SELECT id, category FROM games WHERE category LIKE ?', [`%${oldCategoryName}%`]);
+
+  for (const game of candidateGames) {
+    const categories = parseCategoryList(game.category);
+    const updatedCategories = categories.map((category) =>
+      normalizeText(category) === normalizedOld ? newCategoryName : category
+    );
+
+    const hasChanged = updatedCategories.some((category, index) => category !== categories[index]);
+    if (hasChanged) {
+      const categoryString = formatCategoryString(updatedCategories);
+      await pool.execute('UPDATE games SET category = ? WHERE id = ?', [categoryString, game.id]);
+    }
+  }
+};
+
+const removeGameCategoryFromGames = async (categoryToRemove) => {
+  const normalizedCategory = normalizeText(categoryToRemove);
+  const [candidateGames] = await pool.execute('SELECT id, category FROM games WHERE category LIKE ?', [`%${categoryToRemove}%`]);
+
+  for (const game of candidateGames) {
+    const categories = parseCategoryList(game.category);
+    const updatedCategories = categories.filter((category) => normalizeText(category) !== normalizedCategory);
+
+    if (!updatedCategories.length) {
+      return {
+        blocked: true,
+        gameId: game.id
+      };
+    }
+
+    if (updatedCategories.length !== categories.length) {
+      const categoryString = formatCategoryString(updatedCategories);
+      await pool.execute('UPDATE games SET category = ? WHERE id = ?', [categoryString, game.id]);
+    }
+  }
+
+  return { blocked: false };
 };
 
 // Authentication Controllers
@@ -381,6 +510,122 @@ const permanentDeleteUser = async (req, res) => {
 };
 
 // Game Controllers
+const getGameCategories = async (_req, res) => {
+  try {
+    let categories = [];
+    try {
+      const [rows] = await pool.execute('SELECT id, name FROM game_categories ORDER BY name ASC');
+      categories = rows;
+    } catch (error) {
+      if (error.code !== 'ER_NO_SUCH_TABLE') {
+        throw error;
+      }
+    }
+    const existingCategorySet = new Set(categories.map((category) => normalizeText(category.name)));
+    const mergedCategories = [...categories.map((category) => category.name)];
+
+    DEFAULT_GAME_CATEGORIES.forEach((defaultCategory) => {
+      if (!existingCategorySet.has(normalizeText(defaultCategory))) {
+        mergedCategories.push(defaultCategory);
+      }
+    });
+
+    res.json({
+      categories: mergedCategories.sort((a, b) => a.localeCompare(b)),
+      category_items: categories,
+      default_categories: DEFAULT_GAME_CATEGORIES,
+      playable_platforms: PLAYABLE_PLATFORMS
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const createGameCategory = async (req, res) => {
+  try {
+    const { name } = req.body;
+    const categoryName = name?.toString().trim();
+
+    if (!categoryName) {
+      return res.status(400).json({ error: 'Nama kategori wajib diisi' });
+    }
+
+    try {
+      const [result] = await pool.execute('INSERT INTO game_categories (name) VALUES (?)', [categoryName]);
+      return res.status(201).json({
+        message: 'Kategori berhasil ditambahkan',
+        categoryId: result.insertId
+      });
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') {
+        return res.status(400).json({ error: 'Kategori sudah ada' });
+      }
+      if (error.code === 'ER_NO_SUCH_TABLE') {
+        return res.status(500).json({ error: 'Table game_categories belum tersedia, jalankan migration terlebih dahulu' });
+      }
+      throw error;
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const updateGameCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    const newCategoryName = name?.toString().trim();
+
+    if (!newCategoryName) {
+      return res.status(400).json({ error: 'Nama kategori wajib diisi' });
+    }
+
+    const [existingRows] = await pool.execute('SELECT id, name FROM game_categories WHERE id = ?', [id]);
+    if (!existingRows.length) {
+      return res.status(404).json({ error: 'Kategori tidak ditemukan' });
+    }
+
+    const existingCategory = existingRows[0];
+    const isSameName = normalizeText(existingCategory.name) === normalizeText(newCategoryName);
+    if (isSameName) {
+      return res.json({ message: 'Tidak ada perubahan kategori' });
+    }
+
+    await pool.execute('UPDATE game_categories SET name = ? WHERE id = ?', [newCategoryName, id]);
+    await replaceGameCategoryName(existingCategory.name, newCategoryName);
+
+    res.json({ message: 'Kategori berhasil diperbarui' });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'Kategori dengan nama tersebut sudah ada' });
+    }
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const deleteGameCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [existingRows] = await pool.execute('SELECT id, name FROM game_categories WHERE id = ?', [id]);
+    if (!existingRows.length) {
+      return res.status(404).json({ error: 'Kategori tidak ditemukan' });
+    }
+
+    const categoryName = existingRows[0].name;
+    const result = await removeGameCategoryFromGames(categoryName);
+    if (result.blocked) {
+      return res.status(400).json({
+        error: 'Kategori tidak bisa dihapus karena ada game yang akan kehilangan seluruh kategori'
+      });
+    }
+
+    await pool.execute('DELETE FROM game_categories WHERE id = ?', [id]);
+    res.json({ message: 'Kategori berhasil dihapus' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 const getAllGames = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '', status = '' } = req.query;
@@ -415,12 +660,21 @@ const getAllGames = async (req, res) => {
     // Execute both queries
     const [games] = await pool.execute(query, params);
     const [countResult] = await pool.execute(countQuery, countParams);
+
+    const mappedGames = games.map((game) => {
+      const categories = parseCategoryList(game.category);
+      return {
+        ...game,
+        category: categories.join(', '),
+        categories
+      };
+    });
     
     const total = countResult[0].total;
     const totalPages = Math.ceil(total / limit);
     
     res.json({
-      games,
+      games: mappedGames,
       pagination: {
         currentPage: parseInt(page),
         totalPages,
@@ -438,10 +692,17 @@ const getAllGames = async (req, res) => {
 const createGame = async (req, res) => {
   try {
     const { name, category, image_url, size_gb, status } = req.body;
+    const categoryString = formatCategoryString(category);
+
+    if (!categoryString) {
+      return res.status(400).json({ error: 'Category is required' });
+    }
+
+    await ensureGameCategoriesExist(parseCategoryList(categoryString));
     
     const [result] = await pool.execute(
       'INSERT INTO games (name, category, image_url, size_gb, status) VALUES (?, ?, ?, ?, ?)',
-      [name, category, image_url, size_gb, status || 'available']
+      [name, categoryString, image_url, size_gb, status || 'available']
     );
     
     res.status(201).json({ 
@@ -457,10 +718,17 @@ const updateGame = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, category, image_url, size_gb, status } = req.body;
+    const categoryString = formatCategoryString(category);
+
+    if (!categoryString) {
+      return res.status(400).json({ error: 'Category is required' });
+    }
+
+    await ensureGameCategoriesExist(parseCategoryList(categoryString));
     
     await pool.execute(
       'UPDATE games SET name = ?, category = ?, image_url = ?, size_gb = ?, status = ? WHERE id = ?',
-      [name, category, image_url, size_gb, status, id]
+      [name, categoryString, image_url, size_gb, status, id]
     );
     
     res.json({ message: 'Game updated successfully' });
@@ -637,7 +905,14 @@ const getAllTransactions = async (req, res) => {
 
 const createTransaction = async (req, res) => {
   try {
-    const { user_name, user_address, flashdisk_id, games, total_size_gb } = req.body;
+    const { user_name, user_address, flashdisk_id, games, total_size_gb, play_on_platform } = req.body;
+    const normalizedPlatform = normalizeText(play_on_platform);
+
+    if (!PLAYABLE_PLATFORMS.includes(normalizedPlatform)) {
+      return res.status(400).json({
+        error: `Platform tidak valid. Pilihan yang tersedia: ${PLAYABLE_PLATFORMS.join(', ')}`
+      });
+    }
     
     // Check if total size exceeds real capacity
     const [flashdisks] = await pool.execute(
@@ -654,21 +929,45 @@ const createTransaction = async (req, res) => {
         error: `Total size (${total_size_gb} GB) exceeds real capacity (${flashdisks[0].real_capacity_gb} GB)` 
       });
     }
+
+    const gameIds = Array.isArray(games) ? games.map((game) => game.id).filter(Boolean) : [];
+    if (!gameIds.length) {
+      return res.status(400).json({ error: 'Minimal 1 game harus dipilih' });
+    }
+
+    const gamePlaceholders = gameIds.map(() => '?').join(',');
+    const [selectedGames] = await pool.execute(
+      `SELECT id, category FROM games WHERE id IN (${gamePlaceholders})`,
+      gameIds
+    );
+
+    if (selectedGames.length !== gameIds.length) {
+      return res.status(400).json({ error: 'Sebagian game tidak ditemukan, mohon refresh daftar game' });
+    }
+
+    for (const game of selectedGames) {
+      const incompatibleCategories = getIncompatibleCategories(parseCategoryList(game.category), normalizedPlatform);
+      if (incompatibleCategories.length) {
+        return res.status(400).json({
+          error: `Platform ${normalizedPlatform} tidak kompatibel untuk kategori ${incompatibleCategories.join(', ')}`
+        });
+      }
+    }
     
     // Generate unique transaction ID
     const transaction_id = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     // Insert transaction
     await pool.execute(
-      'INSERT INTO transactions (transaction_id, user_name, user_address, flashdisk_id, total_size_gb) VALUES (?, ?, ?, ?, ?)',
-      [transaction_id, user_name, user_address, flashdisk_id, total_size_gb]
+      'INSERT INTO transactions (transaction_id, user_name, user_address, flashdisk_id, total_size_gb, play_on_platform) VALUES (?, ?, ?, ?, ?, ?)',
+      [transaction_id, user_name, user_address, flashdisk_id, total_size_gb, normalizedPlatform]
     );
     
     // Insert transaction games
-    for (const game of games) {
+    for (const gameId of gameIds) {
       await pool.execute(
         'INSERT INTO transaction_games (transaction_id, game_id) VALUES (?, ?)',
-        [transaction_id, game.id]
+        [transaction_id, gameId]
       );
     }
     
@@ -721,7 +1020,32 @@ const getTransactionById = async (req, res) => {
       return res.status(404).json({ error: 'Transaction not found' });
     }
     
-    res.json(transactions[0]);
+    let parsedGames = transactions[0].games;
+    if (typeof parsedGames === 'string') {
+      try {
+        parsedGames = JSON.parse(parsedGames);
+      } catch {
+        parsedGames = [];
+      }
+    }
+
+    const normalizedGames = Array.isArray(parsedGames)
+      ? parsedGames
+          .filter((game) => game && game.id)
+          .map((game) => {
+            const categories = parseCategoryList(game.category);
+            return {
+              ...game,
+              category: categories.join(', '),
+              categories
+            };
+          })
+      : [];
+
+    res.json({
+      ...transactions[0],
+      games: normalizedGames
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -742,9 +1066,15 @@ app.delete('/users/:id/permanent', authenticateToken, requireAdmin, permanentDel
 
 // Game routes
 app.get('/games', getAllGames);
+app.get('/games/categories', getGameCategories);
 app.post('/games', authenticateToken, requireAdmin, createGame);
 app.put('/games/:id', authenticateToken, requireAdmin, updateGame);
 app.delete('/games/:id', authenticateToken, requireAdmin, deleteGame);
+
+// Game category management routes
+app.post('/game-categories', authenticateToken, requireAdmin, createGameCategory);
+app.put('/game-categories/:id', authenticateToken, requireAdmin, updateGameCategory);
+app.delete('/game-categories/:id', authenticateToken, requireAdmin, deleteGameCategory);
 
 // Flashdisk routes
 app.get('/flashdisks', getAllFlashdisks);
