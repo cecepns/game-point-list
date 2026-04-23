@@ -554,6 +554,58 @@ const UserDashboard = ({ currentUser, onLogout }) => {
           {/* Cart and Order */}
           <div className="space-y-6 lg:sticky lg:top-8 self-start">
             <div className="card">
+              <h2 className="text-xl font-bold mb-4 text-gray-900 flex items-center gap-2">
+                <ShoppingCart className="w-5 h-5" />
+                Keranjang
+              </h2>
+              {cart.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <ShoppingCart className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                  <p>Keranjang masih kosong</p>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4 space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {cart.map((game) => (
+                      <div
+                        key={game.id}
+                        className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={game.image_url}
+                            alt={game.name}
+                            className="w-8 h-8 object-cover rounded"
+                          />
+                          <div>
+                            <p className="font-semibold text-gray-900 text-sm">
+                              {game.name}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              {game.size_gb} GB
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          className="btn btn-danger p-1 text-xs"
+                          onClick={() => removeFromCart(game.id)}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <p className="font-semibold text-gray-900 text-sm">
+                      Total: {getTotalSize().toFixed(1)} GB
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="card">
               <h3 className="text-lg font-semibold mb-3 text-gray-900 flex items-center gap-2">
                 <HardDrive className="w-5 h-5" />
                 Pilih Flashdisk
@@ -640,58 +692,6 @@ const UserDashboard = ({ currentUser, onLogout }) => {
                 <Package className="w-4 h-4" />
                 Buat Pesanan
               </button>
-            </div>
-
-            <div className="card">
-              <h2 className="text-xl font-bold mb-4 text-gray-900 flex items-center gap-2">
-                <ShoppingCart className="w-5 h-5" />
-                Keranjang
-              </h2>
-              {cart.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <ShoppingCart className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>Keranjang masih kosong</p>
-                </div>
-              ) : (
-                <>
-                  <div className="mb-4 space-y-2 max-h-72 overflow-y-auto pr-1">
-                    {cart.map((game) => (
-                      <div
-                        key={game.id}
-                        className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
-                      >
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={game.image_url}
-                            alt={game.name}
-                            className="w-8 h-8 object-cover rounded"
-                          />
-                          <div>
-                            <p className="font-semibold text-gray-900 text-sm">
-                              {game.name}
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              {game.size_gb} GB
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          className="btn btn-danger p-1 text-xs"
-                          onClick={() => removeFromCart(game.id)}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="p-3 bg-blue-50 rounded-lg">
-                    <p className="font-semibold text-gray-900 text-sm">
-                      Total: {getTotalSize().toFixed(1)} GB
-                    </p>
-                  </div>
-                </>
-              )}
             </div>
           </div>
         </div>
