@@ -100,12 +100,13 @@ const AdminTransactions = () => {
   };
 
   const handleViewGames = async (transaction) => {
-    setSelectedTransaction(transaction);
     setShowGameModal(true);
     setLoadingGames(true);
     
     try {
       const response = await axios.get(`${API_BASE}/transactions/${transaction.transaction_id}`);
+      setSelectedTransaction(response.data);
+
       // Handle games data - it could be an array, JSON string, or other format
       let games = response.data?.games;
       
@@ -300,6 +301,9 @@ const AdminTransactions = () => {
                 <strong>User:</strong> {selectedTransaction?.user_name} | 
                 <strong> Flashdisk:</strong> {selectedTransaction?.flashdisk_name} | 
                 <strong> Total Size:</strong> {selectedTransaction?.total_size_gb} GB
+              </p>
+              <p className="mt-2 text-sm text-gray-600">
+                <strong>Dimainkan di:</strong> {selectedTransaction?.play_on_platform || '-'}
               </p>
             </div>
             
