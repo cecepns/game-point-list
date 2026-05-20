@@ -39,7 +39,7 @@ const AdminTransactions = () => {
   // Debounced search term (500ms delay)
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-  const API_BASE = 'https://api-inventory.isavralabel.com/api/game-point-list';
+  const API_BASE = 'https://api.kingcreativestudio.my.id/api/game-point-list';
 
   useEffect(() => {
     fetchTransactions();

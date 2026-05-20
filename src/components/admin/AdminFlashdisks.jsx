@@ -19,7 +19,7 @@ const AdminFlashdisks = () => {
     price: ''
   });
 
-  const API_BASE = 'https://api-inventory.isavralabel.com/api/game-point-list';
+  const API_BASE = 'https://api.kingcreativestudio.my.id/api/game-point-list';
 
   useEffect(() => {
     fetchFlashdisks();

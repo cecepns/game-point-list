@@ -18,7 +18,7 @@ const UserLogin = ({ onLogin }) => {
     setError('');
 
     try {
-      const response = await axios.post('https://api-inventory.isavralabel.com/api/game-point-list/auth/login', formData);
+      const response = await axios.post('https://api.kingcreativestudio.my.id/api/game-point-list/auth/login', formData);
       
       if (response.data.user.role === 'user') {
         onLogin(response.data.user, response.data.token);

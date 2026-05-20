@@ -61,7 +61,7 @@ const AdminUsers = () => {
     const token = getAuthToken();
     const config = {
       method,
-      url: `https://api-inventory.isavralabel.com/api/game-point-list${url}`,
+      url: `https://api.kingcreativestudio.my.id/api/game-point-list${url}`,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
